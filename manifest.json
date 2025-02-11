@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "DeepSeek Snapshot",
+  "version": "1.0",
+  "description": "Capture and copy DeepSeek content to clipboard",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "clipboardWrite",
+    "clipboard-write"
+  ],
+  "web_accessible_resources": [{
+    "resources": ["html2canvas.min.js"],
+    "matches": ["<all_urls>"]
+  }],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "host_permissions": [
+    "https://*.deepseek.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "images/icon.svg"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.deepseek.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
