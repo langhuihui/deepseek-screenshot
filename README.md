@@ -4,7 +4,7 @@
 
 ## 安装步骤
 
-1. 下载 html2canvas 库并保存到项目目录中
+1. git clone 本项目
 2. 在 Chrome 浏览器中打开 `chrome://extensions/`
 3. 开启右上角的"开发者模式"
 4. 点击"加载已解压的扩展程序"
