@@ -20,7 +20,6 @@
     "https://*.deepseek.com/*"
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": "images/icon.svg"
   },
   "content_scripts": [

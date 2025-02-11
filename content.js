@@ -1,3 +1,37 @@
+// 语言配置
+const i18n = {
+  'zh': {
+    captureButton: '截图',
+    copyButton: '复制到剪贴板',
+    closeButton: '关闭',
+    copied: '已复制！',
+    copyFailed: '复制失败',
+    noContent: '找不到有效的内容区域',
+    previewTitle: '截图预览'
+  },
+  'en': {
+    captureButton: 'Capture',
+    copyButton: 'Copy to Clipboard',
+    closeButton: 'Close',
+    copied: 'Copied!',
+    copyFailed: 'Copy failed',
+    noContent: 'No valid content area found',
+    previewTitle: 'Screenshot Preview'
+  }
+};
+
+// 获取当前语言
+function getCurrentLanguage() {
+  const lang = navigator.language.toLowerCase();
+  return lang.startsWith('zh') ? 'zh' : 'en';
+}
+
+// 获取当前语言的文本
+function getText(key) {
+  const lang = getCurrentLanguage();
+  return i18n[lang][key];
+}
+
 // 调试工具
 const debug = {
   log: (...args) => console.log('[DeepSeek Snapshot]', ...args),
@@ -44,6 +78,119 @@ async function loadHtml2Canvas() {
 }
 
 // 创建截图功能
+// 创建预览弹框
+function createPreviewModal(imageDataUrl) {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999;
+  `;
+
+  const container = document.createElement('div');
+  container.style.cssText = `
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    max-width: 90%;
+    max-height: 90%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  `;
+
+  const preview = document.createElement('img');
+  preview.src = imageDataUrl;
+  preview.style.cssText = `
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+  `;
+
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.cssText = `
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  `;
+
+  const copyButton = document.createElement('button');
+  copyButton.textContent = '复制到剪贴板';
+  copyButton.style.cssText = `
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  `;
+
+  const closeButton = document.createElement('button');
+  closeButton.textContent = getText('closeButton');
+  closeButton.style.cssText = `
+    padding: 8px 16px;
+    background-color: #666;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  `;
+
+  copyButton.addEventListener('mouseover', () => copyButton.style.backgroundColor = '#45a049');
+  copyButton.addEventListener('mouseout', () => copyButton.style.backgroundColor = '#4CAF50');
+  closeButton.addEventListener('mouseover', () => closeButton.style.backgroundColor = '#555');
+  closeButton.addEventListener('mouseout', () => closeButton.style.backgroundColor = '#666');
+
+  copyButton.addEventListener('click', async () => {
+    try {
+      const blob = await (await fetch(imageDataUrl)).blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob
+        })
+      ]);
+      copyButton.textContent = getText('copied');
+      setTimeout(() => {
+        copyButton.textContent = getText('copyButton');
+      }, 2000);
+    } catch (error) {
+      debug.error('复制失败:', error);
+      copyButton.textContent = '复制失败';
+      setTimeout(() => {
+        copyButton.textContent = getText('copyButton');
+      }, 2000);
+    }
+  });
+
+  closeButton.addEventListener('click', () => {
+    modal.remove();
+  });
+
+  buttonContainer.appendChild(copyButton);
+  buttonContainer.appendChild(closeButton);
+  container.appendChild(preview);
+  container.appendChild(buttonContainer);
+  modal.appendChild(container);
+  document.body.appendChild(modal);
+
+  // 点击弹框外部关闭
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
 async function captureElement(element) {
   debug.log('开始截图过程...');
   debug.log('目标元素信息:', {
@@ -126,6 +273,10 @@ async function captureElement(element) {
     }
     debug.log('截图成功，画布尺寸:', canvas.width, 'x', canvas.height);
     
+    // 创建预览弹框
+    const dataUrl = canvas.toDataURL('image/png');
+    createPreviewModal(dataUrl);
+    
     // 创建 Blob
     debug.log('开始创建 Blob...');
     try {
@@ -190,35 +341,37 @@ async function getContentArea() {
     'window size': `${window.innerWidth}x${window.innerHeight}`
   });
 
-  // 找到所有可见的 div 元素
-  const allDivs = Array.from(document.getElementsByTagName('div')).filter(div => {
-    const style = window.getComputedStyle(div);
-    const rect = div.getBoundingClientRect();
+  // 找到所有可见的元素
+  const allElements = Array.from(document.querySelectorAll('*')).filter(el => {
+    if (!(el instanceof HTMLElement)) return false;
+    
+    const style = window.getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
     
     // 基本可见性检查
     const isVisible = style.display !== 'none' && 
                       style.visibility !== 'hidden' && 
                       style.opacity !== '0' &&
-                      div.offsetHeight > 100 && // 确保元素足够大
-                      div.offsetWidth > 100;
-
-    // 检查是否是导航栏或边栏
-    const isHeader = rect.top < 100; // 顶部的可能是导航栏
-    const isSidebar = rect.left < 100 || rect.right > window.innerWidth - 100; // 两边的可能是边栏
-    
-    // 检查是否有内容
-    const hasContent = div.innerText.trim().length > 100; // 确保有足够的文本内容
+                      rect.width > 0 &&
+                      rect.height > 0;
 
     // 检查是否是主要内容区域
-    const isMainContent = div.getAttribute('role') === 'main' ||
-                         div.getAttribute('role') === 'article' ||
-                         div.className.toLowerCase().includes('content') ||
-                         div.className.toLowerCase().includes('main') ||
-                         div.id.toLowerCase().includes('content') ||
-                         div.id.toLowerCase().includes('main');
+    const isMainContent = el.getAttribute('role') === 'main' ||
+                         el.getAttribute('role') === 'article' ||
+                         el.className.toLowerCase().includes('content') ||
+                         el.className.toLowerCase().includes('main') ||
+                         el.id.toLowerCase().includes('content') ||
+                         el.id.toLowerCase().includes('main') ||
+                         el.tagName.toLowerCase() === 'article' ||
+                         el.tagName.toLowerCase() === 'main';
 
-    return isVisible && !isHeader && !isSidebar && (hasContent || isMainContent);
+    // 检查是否有内容
+    const hasContent = el.innerText.trim().length > 50;
+
+    return isVisible && (hasContent || isMainContent);
   });
+
+  const allDivs = allElements;
 
   debug.log(`找到 ${allDivs.length} 个可见的内容 div 元素`);
 
@@ -282,17 +435,72 @@ async function getContentArea() {
     return bestDiv;
   }
 
-  // 如果没有找到合适的元素，尝试获取整个页面内容
-  const mainContent = document.body;
-  if (mainContent && mainContent.offsetHeight > 100 && mainContent.offsetWidth > 100) {
-    debug.log('使用页面主体作为内容区域');
-    return mainContent;
+  // 如果没有找到合适的元素，尝试获取当前可见区域
+  const visibleContent = document.querySelector('.conversation-content, .chat-content, #root, main, article') || document.body;
+  if (visibleContent) {
+    debug.log('使用可见区域作为内容区域:', {
+      element: visibleContent.tagName,
+      className: visibleContent.className,
+      id: visibleContent.id
+    });
+    return visibleContent;
   }
 
-  throw new Error('找不到有效的内容区域');
+  throw new Error(getText('noContent'));
 }
 
-// 监听来自 popup 的消息
+// 创建悬浮截图按钮
+function createCaptureButton() {
+  const button = document.createElement('button');
+  button.id = 'deepseek-capture-btn';
+  button.innerHTML = getText('captureButton');
+  button.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 999999;
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+  `;
+
+  button.addEventListener('mouseover', () => {
+    button.style.backgroundColor = '#45a049';
+  });
+
+  button.addEventListener('mouseout', () => {
+    button.style.backgroundColor = '#4CAF50';
+  });
+
+  button.addEventListener('click', async () => {
+    debug.log('截图按钮被点击');
+    try {
+      const area = await getContentArea();
+      if (area) {
+        await captureElement(area);
+      }
+    } catch (error) {
+      debug.error('截图失败:', error);
+    }
+  });
+
+  document.body.appendChild(button);
+}
+
+// 在页面加载完成后创建按钮
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', createCaptureButton);
+} else {
+  createCaptureButton();
+}
+
+// 监听来自 popup 的消息（保留兼容性）
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'capture') {
     debug.log('收到截图请求');
@@ -360,7 +568,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
           // 创建标题
           const title = document.createElement('div');
-          title.textContent = '截图预览';
+          title.textContent = getText('previewTitle');
           title.style.cssText = `
             font-size: 14px;
             font-weight: bold;
@@ -388,7 +596,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
           // 创建复制按钮
           const copyButton = document.createElement('button');
-          copyButton.textContent = '复制到剪贴板';
+          copyButton.textContent = getText('copyButton');
           copyButton.style.cssText = `
             padding: 6px 12px;
             background: #1a73e8;
@@ -402,7 +610,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
           // 创建关闭按钮
           const closeButton = document.createElement('button');
-          closeButton.textContent = '关闭';
+          closeButton.textContent = getText('closeButton');
           closeButton.style.cssText = `
             padding: 6px 12px;
             background: #f1f3f4;
@@ -441,10 +649,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
 
               debug.log('写入剪贴板成功');
-              copyButton.textContent = '复制成功！';
+              copyButton.textContent = getText('copied');
               copyButton.style.background = '#34a853';
               setTimeout(() => {
-                copyButton.textContent = '复制到剪贴板';
+                copyButton.textContent = getText('copyButton');
                 copyButton.style.background = '#1a73e8';
               }, 2000);
 
@@ -455,7 +663,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               copyButton.textContent = '复制失败';
               copyButton.style.background = '#ea4335';
               setTimeout(() => {
-                copyButton.textContent = '复制到剪贴板';
+                copyButton.textContent = getText('copyButton');
                 copyButton.style.background = '#1a73e8';
               }, 2000);
             }
