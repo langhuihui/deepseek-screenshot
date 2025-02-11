@@ -1,7 +1,32 @@
 // 语言配置
+// 加载动画 CSS
+const loadingCSS = `
+  @keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    margin-right: 6px;
+    vertical-align: -3px;
+    animation: rotate 1s linear infinite;
+  }
+`;
+
+// 添加样式到页面
+const style = document.createElement('style');
+style.textContent = loadingCSS;
+document.head.appendChild(style);
+
 const i18n = {
   'zh': {
     captureButton: '截图',
+    capturing: '截图中...',
     copyButton: '复制到剪贴板',
     closeButton: '关闭',
     copied: '已复制！',
@@ -11,6 +36,7 @@ const i18n = {
   },
   'en': {
     captureButton: 'Capture',
+    capturing: 'Capturing...',
     copyButton: 'Copy to Clipboard',
     closeButton: 'Close',
     copied: 'Copied!',
@@ -478,15 +504,34 @@ function createCaptureButton() {
     button.style.backgroundColor = '#4CAF50';
   });
 
+  // 创建 loading spinner 元素
+  const spinner = document.createElement('div');
+  spinner.className = 'loading-spinner';
+  spinner.style.display = 'none';
+  button.insertBefore(spinner, button.firstChild);
+
   button.addEventListener('click', async () => {
     debug.log('截图按钮被点击');
     try {
+      // 显示 loading 状态
+      spinner.style.display = 'inline-block';
+      const originalText = button.textContent;
+      button.textContent = getText('capturing');
+      button.style.pointerEvents = 'none';
+      button.style.opacity = '0.7';
+
       const area = await getContentArea();
       if (area) {
         await captureElement(area);
       }
     } catch (error) {
       debug.error('截图失败:', error);
+    } finally {
+      // 恢复按钮状态
+      spinner.style.display = 'none';
+      button.textContent = getText('captureButton');
+      button.style.pointerEvents = 'auto';
+      button.style.opacity = '1';
     }
   });
 
